@@ -42,26 +42,32 @@ NODE_NAMES = [
     "Identifier",
     "Intrinsic",
     "Logical",
-    "Array"
+    "Array",
 ]
 
-node2indexer: dict[str, Callable[[], str]] = {node_name: get_indexer(node_name) for node_name in NODE_NAMES}
+node2indexer: dict[str, Callable[[], str]] = {
+    node_name: get_indexer(node_name) for node_name in NODE_NAMES
+}
 
 
-def draw_execution_plan(parsed_ep: ExecutionPlan,
-                        graph_name: str = "ExecutionPlan",
-                        save_dir: Optional[str] = None,
-                        format_: Optional[str] = None) -> None:
-    dot = graphviz.Digraph(name=graph_name,
-                           format=format_,
-                           graph_attr={
-                               "rankdir": "RL",
-                               "labelloc": "t",
-                               "label": parsed_ep.query,
-                               "fontname": FONT
-                           },
-                           node_attr={"shape": "record", "fontname": FONT},
-                           edge_attr={"fontname": FONT})
+def draw_execution_plan(
+    parsed_ep: ExecutionPlan,
+    graph_name: str = "ExecutionPlan",
+    save_dir: Optional[str] = None,
+    format_: Optional[str] = None,
+) -> None:
+    dot = graphviz.Digraph(
+        name=graph_name,
+        format=format_,
+        graph_attr={
+            "rankdir": "RL",
+            "labelloc": "t",
+            "label": parsed_ep.query,
+            "fontname": FONT,
+        },
+        node_attr={"shape": "record", "fontname": FONT},
+        edge_attr={"fontname": FONT},
+    )
     root = "SELECT"
     dot.node(root)
     draw_relop(parsed_ep.relop, root, dot)

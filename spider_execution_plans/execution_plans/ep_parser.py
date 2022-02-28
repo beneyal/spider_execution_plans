@@ -21,11 +21,13 @@ def is_stream_aggregate(logical_op: str, physical_op: str) -> bool:
 
 
 def is_index_scan(logical_op: str, physical_op: str) -> bool:
-    return logical_op == physical_op == "Clustered Index Scan" \
-           or logical_op == physical_op == "Clustered Index Seek" \
-           or logical_op == physical_op == "Index Scan" \
-           or logical_op == physical_op == "Index Seek" \
-           or logical_op == physical_op == "RID Lookup"
+    return (
+        logical_op == physical_op == "Clustered Index Scan"
+        or logical_op == physical_op == "Clustered Index Seek"
+        or logical_op == physical_op == "Index Scan"
+        or logical_op == physical_op == "Index Seek"
+        or logical_op == physical_op == "RID Lookup"
+    )
 
 
 def is_sort(logical_op: str, physical_op: str) -> bool:
@@ -33,7 +35,10 @@ def is_sort(logical_op: str, physical_op: str) -> bool:
 
 
 def is_nested_loops(logical_op: str, physical_op: str) -> bool:
-    return logical_op in ("Inner Join", "Left Anti Semi Join", "Left Semi Join") and physical_op == "Nested Loops"
+    return (
+        logical_op in ("Inner Join", "Left Anti Semi Join", "Left Semi Join")
+        and physical_op == "Nested Loops"
+    )
 
 
 def is_filter(logical_op: str, physical_op: str) -> bool:
@@ -49,8 +54,11 @@ def is_top(logical_op: str, physical_op: str) -> bool:
 
 
 def is_merge(logical_op: str, physical_op: str) -> bool:
-    return logical_op in ("Union", "Inner Join", "Right Anti Semi Join", "Left Anti Semi Join") \
-           and physical_op == "Merge Join"
+    return (
+        logical_op
+        in ("Union", "Inner Join", "Right Anti Semi Join", "Left Anti Semi Join")
+        and physical_op == "Merge Join"
+    )
 
 
 def is_table_scan(logical_op: str, physical_op: str) -> bool:
@@ -58,7 +66,10 @@ def is_table_scan(logical_op: str, physical_op: str) -> bool:
 
 
 def is_hash(logical_op: str, physical_op: str) -> bool:
-    return logical_op in ("Aggregate", "Inner Join", "Right Anti Semi Join") and physical_op == "Hash Match"
+    return (
+        logical_op in ("Aggregate", "Inner Join", "Right Anti Semi Join")
+        and physical_op == "Hash Match"
+    )
 
 
 def is_concat(logical_op: str, physical_op: str) -> bool:
@@ -76,7 +87,10 @@ def is_spool(logical_op: str, physical_op: str) -> bool:
 def parse_relop(relop: _Element) -> RelOp:
     logical_op = relop.attrib["LogicalOp"]
     physical_op = relop.attrib["PhysicalOp"]
-    output_list = [parse_column_reference(c) for c in relop.find(f"./{{{NS}}}OutputList").getchildren()]
+    output_list = [
+        parse_column_reference(c)
+        for c in relop.find(f"./{{{NS}}}OutputList").getchildren()
+    ]
 
     if is_compute_scalar(logical_op, physical_op):
         operation = parse_compute_scalar(relop.find(f"./{{{NS}}}ComputeScalar"))
@@ -107,7 +121,9 @@ def parse_relop(relop: _Element) -> RelOp:
     elif is_spool(logical_op, physical_op):
         operation = parse_spool(relop.find(f"./{{{NS}}}Spool"))
     else:
-        raise ValueError(f"The pair ({logical_op}, {physical_op}) are not mapped to any operation.")
+        raise ValueError(
+            f"The pair ({logical_op}, {physical_op}) are not mapped to any operation."
+        )
 
     return RelOp(operation=operation, output_list=output_list)
 
@@ -140,7 +156,9 @@ def parse_aggregate(aggregate: _Element) -> Aggregate:
     agg_type = aggregate.attrib["AggType"]
     distinct = aggregate.attrib["Distinct"]
     scalar_operators = [parse_scalar_operator(e) for e in aggregate.getchildren()]
-    return Aggregate(agg_type=agg_type, distinct=distinct, scalar_operators=scalar_operators)
+    return Aggregate(
+        agg_type=agg_type, distinct=distinct, scalar_operators=scalar_operators
+    )
 
 
 def parse_arithmetic(arithmetic: _Element) -> Arithmetic:
@@ -172,23 +190,29 @@ def parse_convert(convert: _Element) -> Convert:
     length = convert.get("Length")
     precision = convert.get("Precision")
     scale = convert.get("Scale")
-    return Convert(scalar_operator=scalar_operator,
-                   data_type=data_type,
-                   implicit=implicit,
-                   length=length,
-                   precision=precision,
-                   scale=scale)
+    return Convert(
+        scalar_operator=scalar_operator,
+        data_type=data_type,
+        implicit=implicit,
+        length=length,
+        precision=precision,
+        scale=scale,
+    )
 
 
 def parse_if(if_: _Element) -> If:
-    condition = parse_scalar_operator(if_.find(f"./{{{NS}}}Condition/{{{NS}}}ScalarOperator"))
+    condition = parse_scalar_operator(
+        if_.find(f"./{{{NS}}}Condition/{{{NS}}}ScalarOperator")
+    )
     then = parse_scalar_operator(if_.find(f"./{{{NS}}}Then/{{{NS}}}ScalarOperator"))
     alt = parse_scalar_operator(if_.find(f"./{{{NS}}}Else/{{{NS}}}ScalarOperator"))
     return If(condition=condition, then=then, alt=alt)
 
 
 def parse_identifier(identifier: _Element) -> Identifier:
-    column_reference = parse_column_reference(identifier.find(f"./{{{NS}}}ColumnReference"))
+    column_reference = parse_column_reference(
+        identifier.find(f"./{{{NS}}}ColumnReference")
+    )
     return Identifier(column_reference=column_reference)
 
 
@@ -209,11 +233,17 @@ def parse_defined_values(op: _Element) -> list[DefinedValue]:
     dvs: list[_Element] = op.findall(defined_values_path)
     result: list[DefinedValue] = []
     for dv in dvs:
-        column_references = [parse_column_reference(c) for c in dv.findall(f"./{{{NS}}}ColumnReference")]
+        column_references = [
+            parse_column_reference(c) for c in dv.findall(f"./{{{NS}}}ColumnReference")
+        ]
         scalar_operator_element = dv.find(f"./{{{NS}}}ScalarOperator")
         if scalar_operator_element is not None:
             scalar_operator = parse_scalar_operator(scalar_operator_element)
-            result.append(DefinedValue(column_references=column_references, scalar_operator=scalar_operator))
+            result.append(
+                DefinedValue(
+                    column_references=column_references, scalar_operator=scalar_operator
+                )
+            )
         else:
             result.append(DefinedValue(column_references=column_references))
     return result
@@ -224,34 +254,49 @@ def parse_compute_scalar(compute_scalar: _Element) -> ComputeScalar:
     defined_values = parse_defined_values(compute_scalar)
     if (cs := compute_scalar.get("ComputeSequence")) is not None:
         compute_sequence = cs == "1"
-        return ComputeScalar(compute_sequence=compute_sequence, relop=relop, defined_values=defined_values)
+        return ComputeScalar(
+            compute_sequence=compute_sequence,
+            relop=relop,
+            defined_values=defined_values,
+        )
     return ComputeScalar(relop=relop, defined_values=defined_values)
 
 
 def parse_group_by(group_by: _Element) -> list[ColumnReference]:
-    return [parse_column_reference(c) for c in group_by.findall(f"./{{{NS}}}ColumnReference")]
+    return [
+        parse_column_reference(c)
+        for c in group_by.findall(f"./{{{NS}}}ColumnReference")
+    ]
 
 
 def parse_column_reference(column_reference: _Element) -> ColumnReference:
-    return ColumnReference(column=column_reference.attrib["Column"],
-                           schema=column_reference.get("Schema"),
-                           table=column_reference.get("Table"),
-                           alias=column_reference.get("Alias"))
+    return ColumnReference(
+        column=column_reference.attrib["Column"],
+        schema=column_reference.get("Schema"),
+        table=column_reference.get("Table"),
+        alias=column_reference.get("Alias"),
+    )
 
 
 def parse_stream_aggregate(stream_aggregate: _Element) -> StreamAggregate:
     relop = parse_relop(stream_aggregate.find(f"./{{{NS}}}RelOp"))
     defined_values = parse_defined_values(stream_aggregate)
     if (group_by := stream_aggregate.find(f"./{{{NS}}}GroupBy")) is not None:
-        return StreamAggregate(group_by=parse_group_by(group_by), relop=relop, defined_values=defined_values)
+        return StreamAggregate(
+            group_by=parse_group_by(group_by),
+            relop=relop,
+            defined_values=defined_values,
+        )
     return StreamAggregate(relop=relop, defined_values=defined_values)
 
 
 def parse_object(obj: _Element) -> Object:
-    return Object(schema=obj.attrib["Schema"],
-                  table=obj.attrib["Table"],
-                  alias=obj.get("Alias"),
-                  index=obj.get("Index"))
+    return Object(
+        schema=obj.attrib["Schema"],
+        table=obj.attrib["Table"],
+        alias=obj.get("Alias"),
+        index=obj.get("Index"),
+    )
 
 
 def parse_predicate(predicate: _Element) -> ScalarOperator:
@@ -260,11 +305,21 @@ def parse_predicate(predicate: _Element) -> ScalarOperator:
 
 def parse_scan_range(scan_range: _Element) -> ScanRange:
     scan_type = scan_range.attrib["ScanType"]
-    range_columns = [parse_column_reference(c)
-                     for c in scan_range.findall(f"./{{{NS}}}RangeColumns/{{{NS}}}ColumnReference")]
-    range_expressions = [parse_scalar_operator(so)
-                         for so in scan_range.findall(f"./{{{NS}}}RangeExpressions/{{{NS}}}ScalarOperator")]
-    return ScanRange(scan_type=scan_type, range_columns=range_columns, range_expressions=range_expressions)
+    range_columns = [
+        parse_column_reference(c)
+        for c in scan_range.findall(f"./{{{NS}}}RangeColumns/{{{NS}}}ColumnReference")
+    ]
+    range_expressions = [
+        parse_scalar_operator(so)
+        for so in scan_range.findall(
+            f"./{{{NS}}}RangeExpressions/{{{NS}}}ScalarOperator"
+        )
+    ]
+    return ScanRange(
+        scan_type=scan_type,
+        range_columns=range_columns,
+        range_expressions=range_expressions,
+    )
 
 
 def parse_seek_predicate(seek_predicate: _Element) -> SeekPredicate:
@@ -281,21 +336,30 @@ def parse_index_scan(index_scan: _Element) -> IndexScan:
     obj = parse_object(index_scan.find(f"./{{{NS}}}Object"))
     defined_values = parse_defined_values(index_scan)
     ordered = index_scan.attrib["Ordered"] == "true"
-    seek_predicate_path = f"./{{{NS}}}SeekPredicates/{{{NS}}}SeekPredicateNew/{{{NS}}}SeekKeys"
+    seek_predicate_path = (
+        f"./{{{NS}}}SeekPredicates/{{{NS}}}SeekPredicateNew/{{{NS}}}SeekKeys"
+    )
     if (seek_predicate := index_scan.find(seek_predicate_path)) is not None:
         seek_predicate = parse_seek_predicate(seek_predicate)
-    predicates = [parse_predicate(e) for e in index_scan.findall(f"./{{{NS}}}Predicate")]
-    return IndexScan(ordered=ordered,
-                     obj=obj,
-                     seek_predicate=seek_predicate,
-                     predicates=predicates,
-                     defined_values=defined_values)
+    predicates = [
+        parse_predicate(e) for e in index_scan.findall(f"./{{{NS}}}Predicate")
+    ]
+    return IndexScan(
+        ordered=ordered,
+        obj=obj,
+        seek_predicate=seek_predicate,
+        predicates=predicates,
+        defined_values=defined_values,
+    )
 
 
 def parse_order_by(order_by: _Element) -> OrderBy:
     order_by_column = order_by.find(f"./{{{NS}}}OrderByColumn")
     ascending = order_by_column.attrib["Ascending"] == "1"
-    columns = [parse_column_reference(e) for e in order_by_column.findall(f"./{{{NS}}}ColumnReference")]
+    columns = [
+        parse_column_reference(e)
+        for e in order_by_column.findall(f"./{{{NS}}}ColumnReference")
+    ]
     return OrderBy(ascending=ascending, columns=columns)
 
 
@@ -304,14 +368,21 @@ def parse_sort(sort: _Element) -> Sort:
     order_by = parse_order_by(sort.find(f"./{{{NS}}}OrderBy"))
     relop = parse_relop(sort.find(f"./{{{NS}}}RelOp"))
     defined_values = parse_defined_values(sort)
-    return Sort(distinct=distinct, order_by=order_by, relop=relop, defined_values=defined_values)
+    return Sort(
+        distinct=distinct, order_by=order_by, relop=relop, defined_values=defined_values
+    )
 
 
 def parse_nested_loops(nested_loops: _Element) -> NestedLoops:
     left, right = [parse_relop(e) for e in nested_loops.findall(f"./{{{NS}}}RelOp")]
     defined_values = parse_defined_values(nested_loops)
     if (p := nested_loops.find(f"./{{{NS}}}Predicate")) is not None:
-        return NestedLoops(left=left, right=right, predicate=parse_predicate(p), defined_values=defined_values)
+        return NestedLoops(
+            left=left,
+            right=right,
+            predicate=parse_predicate(p),
+            defined_values=defined_values,
+        )
     return NestedLoops(left=left, right=right, defined_values=defined_values)
 
 
@@ -320,10 +391,12 @@ def parse_filter(filter_: _Element) -> Filter:
     relop = parse_relop(filter_.find(f"./{{{NS}}}RelOp"))
     predicate = parse_predicate(filter_.find(f"./{{{NS}}}Predicate"))
     defined_values = parse_defined_values(filter_)
-    return Filter(startup_expression=startup_expression,
-                  relop=relop,
-                  predicate=predicate,
-                  defined_values=defined_values)
+    return Filter(
+        startup_expression=startup_expression,
+        relop=relop,
+        predicate=predicate,
+        defined_values=defined_values,
+    )
 
 
 def parse_top_sort(top_sort: _Element) -> TopSort:
@@ -332,14 +405,24 @@ def parse_top_sort(top_sort: _Element) -> TopSort:
     order_by = parse_order_by(top_sort.find(f"./{{{NS}}}OrderBy"))
     relop = parse_relop(top_sort.find(f"./{{{NS}}}RelOp"))
     defined_values = parse_defined_values(top_sort)
-    return TopSort(distinct=distinct, order_by=order_by, relop=relop, rows=rows, defined_values=defined_values)
+    return TopSort(
+        distinct=distinct,
+        order_by=order_by,
+        relop=relop,
+        rows=rows,
+        defined_values=defined_values,
+    )
 
 
 def parse_top(top: _Element) -> Top:
-    top_expression = parse_scalar_operator(top.find(f"./{{{NS}}}TopExpression/{{{NS}}}ScalarOperator"))
+    top_expression = parse_scalar_operator(
+        top.find(f"./{{{NS}}}TopExpression/{{{NS}}}ScalarOperator")
+    )
     relop = parse_relop(top.find(f"./{{{NS}}}RelOp"))
     defined_values = parse_defined_values(top)
-    return Top(top_expression=top_expression, relop=relop, defined_values=defined_values)
+    return Top(
+        top_expression=top_expression, relop=relop, defined_values=defined_values
+    )
 
 
 def parse_merge(merge: _Element) -> Merge:
@@ -347,9 +430,19 @@ def parse_merge(merge: _Element) -> Merge:
     join_tags = [f"{{{NS}}}InnerSideJoinColumns", f"{{{NS}}}OuterSideJoinColumns"]
     defined_values = parse_defined_values(merge)
     if all([merge.find(t) is not None for t in join_tags]):
-        on_left = parse_column_reference(merge.find(join_tags[0]).find(f"{{{NS}}}ColumnReference"))
-        on_right = parse_column_reference(merge.find(join_tags[1]).find(f"{{{NS}}}ColumnReference"))
-        return Merge(left=left, right=right, on_left=on_left, on_right=on_right, defined_values=defined_values)
+        on_left = parse_column_reference(
+            merge.find(join_tags[0]).find(f"{{{NS}}}ColumnReference")
+        )
+        on_right = parse_column_reference(
+            merge.find(join_tags[1]).find(f"{{{NS}}}ColumnReference")
+        )
+        return Merge(
+            left=left,
+            right=right,
+            on_left=on_left,
+            on_right=on_right,
+            defined_values=defined_values,
+        )
     return Merge(left=left, right=right, defined_values=defined_values)
 
 
@@ -358,7 +451,12 @@ def parse_table_scan(table_scan: _Element) -> TableScan:
     obj = parse_object(table_scan.find(f"./{{{NS}}}Object"))
     defined_values = parse_defined_values(table_scan)
     if (p := table_scan.find(f"./{{{NS}}}Predicate")) is not None:
-        return TableScan(ordered=ordered, obj=obj, predicate=parse_predicate(p), defined_values=defined_values)
+        return TableScan(
+            ordered=ordered,
+            obj=obj,
+            predicate=parse_predicate(p),
+            defined_values=defined_values,
+        )
     return TableScan(ordered=ordered, obj=obj, defined_values=defined_values)
 
 

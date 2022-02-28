@@ -8,6 +8,7 @@ def plan_to_text(ep: ExecutionPlan) -> str:
     ----------
     ep
         The execution plan to be converted
+
     Returns
     -------
     plan
@@ -73,7 +74,12 @@ def compute_scalar_to_text(x: ComputeScalar) -> list[str]:
     -------
 
     """
-    pass
+    instructions = relop_to_text(x.relop)
+    compute_scalar_instructions = [
+        f"Compute {dv.scalar_operator} and store it as {dv.column_references[0]}."
+        for dv in x.defined_values
+    ]
+    return instructions + compute_scalar_instructions
 
 
 def stream_aggregate_to_text(x: StreamAggregate) -> list[str]:
@@ -104,7 +110,11 @@ def index_scan_to_text(x: IndexScan) -> list[str]:
         A list consisting of a single instruction: "Scan <table> using <method> [in order] [by checking <predicate>+]"
     """
     ordered = " in order" if x.ordered else ""
-    predicates = " by checking " + ", ".join(str(p) for p in x.predicates).replace("\\", "") if x.predicates else ""
+    predicates = (
+        " by checking " + ", ".join(str(p) for p in x.predicates).replace("\\", "")
+        if x.predicates
+        else ""
+    )
     return [f"Scan {x.obj}{ordered}{predicates}"]
 
 
@@ -213,7 +223,11 @@ def table_scan_to_text(x: TableScan) -> list[str]:
         A list consisting of a single instruction: "Scan <table> using <method> [in order] [by checking <predicate>+]"
     """
     ordered = " in order" if x.ordered else ""
-    predicates = " by checking " + ", ".join(str(p) for p in x.predicates).replace("\\", "") if x.predicates else ""
+    predicates = (
+        " by checking " + ", ".join(str(p) for p in x.predicates).replace("\\", "")
+        if x.predicates
+        else ""
+    )
     return [f"Scan {x.obj}{ordered}{predicates}"]
 
 

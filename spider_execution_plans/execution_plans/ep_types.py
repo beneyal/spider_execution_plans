@@ -26,7 +26,9 @@ class OrderBy:
     columns: list[ColumnReference] = field(default_factory=list)
 
     def __str__(self):
-        return "Order By: {} ({})".format("\n".join(map(str, self.columns)), "ASC" if self.ascending else "DESC")
+        return "Order By: {} ({})".format(
+            "\n".join(map(str, self.columns)), "ASC" if self.ascending else "DESC"
+        )
 
 
 @dataclass(frozen=True)
@@ -37,9 +39,11 @@ class Aggregate:
 
     def __str__(self):
         if self.scalar_operators:
-            return (f"{self.agg_type}"
-                    f"({'DISTINCT ' if self.distinct else ''}"
-                    f"{', '.join(map(str, self.scalar_operators))})")
+            return (
+                f"{self.agg_type}"
+                f"({'DISTINCT ' if self.distinct else ''}"
+                f"{', '.join(map(str, self.scalar_operators))})"
+            )
         else:
             return self.agg_type
 
@@ -59,7 +63,15 @@ class Arithmetic:
 
 
 COMPARE_OP = Literal["EQ", "GE", "GT", "IS", "LE", "LT", "NE"]
-comp2sign = {"EQ": "=", "GE": "\>=", "GT": "\>", "IS": "IS", "LE": "\<=", "LT": "\<", "NE": "\<\>"}
+comp2sign = {
+    "EQ": "=",
+    "GE": "\>=",
+    "GT": "\>",
+    "IS": "IS",
+    "LE": "\<=",
+    "LT": "\<",
+    "NE": "\<\>",
+}
 
 
 @dataclass(frozen=True)
@@ -168,7 +180,9 @@ class ComputeScalar:
 
     def __str__(self):
         if self.defined_values:
-            return r"Compute Scalar|Defined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            return r"Compute Scalar|Defined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return "Compute Scalar"
 
 
@@ -179,7 +193,9 @@ class Concat:
 
     def __str__(self):
         if self.defined_values:
-            return r"Concat|Defined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            return r"Concat|Defined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return "Concat"
 
 
@@ -193,7 +209,9 @@ class Filter:
     def __str__(self):
         result = rf"Filter|Predicate:\n{self.predicate}"
         if self.defined_values:
-            result += r"\n\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            result += r"\n\nDefined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return result
 
 
@@ -204,7 +222,9 @@ class Hash:
 
     def __str__(self):
         if self.defined_values:
-            return r"Hash|Defined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            return r"Hash|Defined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return "Hash"
 
 
@@ -286,9 +306,13 @@ class IndexScan:
         if self.seek_predicate:
             result += r"\n\nSeek Predicate:\n{}".format(self.seek_predicate)
         if self.predicates:
-            result += r"\n\nPredicates:\n{}".format(r"\n".join(list(map(str, self.predicates))))
+            result += r"\n\nPredicates:\n{}".format(
+                r"\n".join(list(map(str, self.predicates)))
+            )
         if self.defined_values:
-            result += r"\n\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            result += r"\n\nDefined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return result
 
 
@@ -303,7 +327,9 @@ class Merge:
     def __str__(self):
         result = rf"Merge|LHS: {self.on_left}\nRHS: {self.on_right}"
         if self.defined_values:
-            result += r"\n\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            result += r"\n\nDefined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return result
 
 
@@ -321,7 +347,9 @@ class NestedLoops:
         if self.predicate:
             result += rf"Predicate: {self.predicate}\n"
         if self.defined_values:
-            result += r"\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            result += r"\nDefined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return result
 
 
@@ -332,7 +360,9 @@ class RowCountSpool:
 
     def __str__(self):
         if self.defined_values:
-            return r"Row Count Spool|Defined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            return r"Row Count Spool|Defined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return "Row Count Spool"
 
 
@@ -354,7 +384,9 @@ class Spool:
 
     def __str__(self):
         if self.defined_values:
-            return r"Spool|Defined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            return r"Spool|Defined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return "Spool"
 
 
@@ -370,9 +402,13 @@ class StreamAggregate:
             result += r"Grouped by: {}".format(r"\n".join(map(str, self.group_by)))
         if self.defined_values:
             if result.endswith("|"):
-                result += r"Defined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+                result += r"Defined Values:\n{}".format(
+                    r"\n".join(map(str, self.defined_values))
+                )
             else:
-                result += r"\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+                result += r"\nDefined Values:\n{}".format(
+                    r"\n".join(map(str, self.defined_values))
+                )
         return result
 
 
@@ -388,7 +424,9 @@ class TableScan:
         if self.predicate:
             result += rf"\n\nPredicate:\n{self.predicate}\n"
         if self.defined_values:
-            result += r"\n\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            result += r"\n\nDefined Values:\n{}".format(
+                r"\n".join(map(str, self.defined_values))
+            )
         return result
 
 
@@ -400,8 +438,9 @@ class Top:
 
     def __str__(self):
         if self.defined_values:
-            return r"Top|Expression: {}\n\nDefined Values:\n{}".format(self.top_expression,
-                                                                     "\n".join(map(str, self.defined_values)))
+            return r"Top|Expression: {}\n\nDefined Values:\n{}".format(
+                self.top_expression, "\n".join(map(str, self.defined_values))
+            )
         return f"Top|Expression: {self.top_expression}"
 
 
@@ -415,8 +454,12 @@ class TopSort:
 
     def __str__(self):
         if self.defined_values:
-            return rf"Top Sort|Distinct: {self.distinct}\n{self.order_by}" + \
-                   r"\n\nDefined Values:\n{}".format(r"\n".join(map(str, self.defined_values)))
+            return (
+                rf"Top Sort|Distinct: {self.distinct}\n{self.order_by}"
+                + r"\n\nDefined Values:\n{}".format(
+                    r"\n".join(map(str, self.defined_values))
+                )
+            )
         return rf"Top Sort|Distinct: {self.distinct}\n{self.order_by}"
 
 
@@ -434,7 +477,7 @@ RelOpType = Union[
     StreamAggregate,
     TableScan,
     Top,
-    TopSort
+    TopSort,
 ]
 
 

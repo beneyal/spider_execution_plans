@@ -26,11 +26,8 @@ def query_all(q, **kwargs):
     train, dev = get_train_dev_eps()
     train_results = [result for ep in train for result in query(ep, q, **kwargs)]
     dev_results = [result for ep in dev for result in query(ep, q, **kwargs)]
-    return {
-        "train": train_results,
-        "dev": dev_results
-    }
+    return {"train": train_results, "dev": dev_results}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(query_all(Sort))

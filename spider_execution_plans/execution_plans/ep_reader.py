@@ -9,7 +9,10 @@ from .ep_types import ExecutionPlan
 
 
 def read(split: Literal["train", "dev"]) -> list[_Element]:
-    assert split in ("train", "dev"), 'The "split" parameter must be either "train" or "dev".'
+    assert split in (
+        "train",
+        "dev",
+    ), 'The "split" parameter must be either "train" or "dev".'
     with open(f"dataset/{split}_spider_with_ep.json", encoding="utf-8") as f:
         dataset = json.load(f)
     return [etree.fromstring(ins["ep"]) for ins in dataset]
