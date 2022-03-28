@@ -244,11 +244,7 @@ class Object:
         result = [f"{self.table} table"]
         # if alias:
         #     result.append(f"as {alias}")
-        if index_type == "PK":
-            result.append("using PK index")
-        elif index_type == "UQ":
-            result.append("using unique index")
-        else:
+        if index_type not in ("PK", "UQ"):
             result.append(f"using user index")
         return ", ".join(result)
 

@@ -2,7 +2,6 @@ from lxml.etree import _Element
 
 from .ep_types import *
 
-
 NS = "http://schemas.microsoft.com/sqlserver/2004/07/showplan"
 
 

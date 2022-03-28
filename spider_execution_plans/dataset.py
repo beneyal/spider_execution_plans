@@ -2,17 +2,18 @@
 
 import json
 import re
-
 from pathlib import Path
 from typing import Tuple
 
 import pandas as pd
 import pyodbc
 
-CONNECTION_STRING = ("Driver={ODBC Driver 17 for SQL Server};"
-                     "Server=BENEYAL;"
-                     "Database=spider;"
-                     "Trusted_Connection=yes;")
+CONNECTION_STRING = (
+    "Driver={ODBC Driver 17 for SQL Server};"
+    "Server=BENEYAL;"
+    "Database=spider;"
+    "Trusted_Connection=yes;"
+)
 
 SCHEMAS = [p.name for p in Path("schemas").glob("*") if p.name != ".git"]
 EXCLUDE = ["baseball_1", "college_2", "hr_1", "sakila_1", "soccer_1", "wta_1"]
@@ -23,7 +24,9 @@ SPIDER_DEV = SPIDER_PATH / "dev.json"
 SPIDER_TABLES = SPIDER_PATH / "tables.json"
 
 
-def add_execution_plan(split: list, tables: dict, cursor: pyodbc.Cursor) -> Tuple[list, list]:
+def add_execution_plan(
+    split: list, tables: dict, cursor: pyodbc.Cursor
+) -> Tuple[list, list]:
     instances = []
     errors = []
     for instance in split:
@@ -76,15 +79,26 @@ def copy_orderby_to_select_distinct(query_tokens):
             distinct_idx = i
             break
     if lowercase_query_tokens[order_idx + 2] in ("sum", "avg", "count", "min", "max"):
-        orderby_arg = query_tokens[order_idx + 2:lowercase_query_tokens.index(")", order_idx + 2)]
+        orderby_arg = query_tokens[
+            order_idx + 2 : lowercase_query_tokens.index(")", order_idx + 2)
+        ]
     else:
         orderby_arg = query_tokens[order_idx + 2]
     from_idx = lowercase_query_tokens.index("from")
-    select_args = query_tokens[distinct_idx + 1:from_idx]
+    select_args = query_tokens[distinct_idx + 1 : from_idx]
     if type(orderby_arg) == list:
-        query_tokens = query_tokens[:distinct_idx + 1] + orderby_arg + [","] + query_tokens[distinct_idx + 1:]
+        query_tokens = (
+            query_tokens[: distinct_idx + 1]
+            + orderby_arg
+            + [","]
+            + query_tokens[distinct_idx + 1 :]
+        )
     elif orderby_arg not in select_args:
-        query_tokens = query_tokens[:distinct_idx + 1] + [orderby_arg, ","] + query_tokens[distinct_idx + 1:]
+        query_tokens = (
+            query_tokens[: distinct_idx + 1]
+            + [orderby_arg, ","]
+            + query_tokens[distinct_idx + 1 :]
+        )
     return query_tokens
 
 
@@ -96,27 +110,30 @@ def copy_columns_from_select_to_groupby(query_tokens):
         if lowercase_query_tokens[i] == "select":
             if lowercase_query_tokens[i + 1] == "distinct":
                 select_idx = i + 1
-                new_query_tokens.extend(query_tokens[i:i + 2])
+                new_query_tokens.extend(query_tokens[i : i + 2])
                 i += 2
             else:
                 select_idx = i
                 new_query_tokens.append(query_tokens[i])
                 i += 1
         elif lowercase_query_tokens[i] == "from":
-            select_args = [t for t in query_tokens[select_idx + 1:i] if t != ","]
+            select_args = [t for t in query_tokens[select_idx + 1 : i] if t != ","]
             lowercase_select_args = [t.lower() for t in select_args]
             for agg in ("sum", "avg", "count", "min", "max"):
                 while agg in lowercase_select_args:
                     idx = lowercase_select_args.index(agg)
-                    del select_args[idx:lowercase_select_args.index(")", idx) + 1]
+                    del select_args[idx : lowercase_select_args.index(")", idx) + 1]
                     lowercase_select_args = [t.lower() for t in select_args]
             new_query_tokens.append(query_tokens[i])
             i += 1
-        elif lowercase_query_tokens[i] == "group" and lowercase_query_tokens[i + 1] == "by":
+        elif (
+            lowercase_query_tokens[i] == "group"
+            and lowercase_query_tokens[i + 1] == "by"
+        ):
             groupby_arg = query_tokens[i + 2]
             if groupby_arg not in select_args:
                 select_args.append(groupby_arg)
-            new_query_tokens.extend(query_tokens[i:i + 2])
+            new_query_tokens.extend(query_tokens[i : i + 2])
             new_query_tokens.extend(" , ".join(select_args).split())
             i += 3
         else:
@@ -147,7 +164,7 @@ def convert_limit_to_top(query_tokens):
     while "limit" in lowercase_query_tokens:
         limit_idx = lowercase_query_tokens.index("limit")
         limit_arg = lowercase_query_tokens[limit_idx + 1]
-        del query_tokens[limit_idx:limit_idx + 2]
+        del query_tokens[limit_idx : limit_idx + 2]
         for i in range(limit_idx, -1, -1):
             if lowercase_query_tokens[i] == "select":
                 select_idx = i
@@ -155,9 +172,15 @@ def convert_limit_to_top(query_tokens):
         top = ["TOP", str(limit_arg)]
         if "distinct" in lowercase_query_tokens[select_idx:]:
             distinct_idx = lowercase_query_tokens.index("distinct")
-            query_tokens = query_tokens[:distinct_idx + 1] + top + query_tokens[distinct_idx + 1:]
+            query_tokens = (
+                query_tokens[: distinct_idx + 1]
+                + top
+                + query_tokens[distinct_idx + 1 :]
+            )
         else:
-            query_tokens = query_tokens[:select_idx + 1] + top + query_tokens[select_idx + 1:]
+            query_tokens = (
+                query_tokens[: select_idx + 1] + top + query_tokens[select_idx + 1 :]
+            )
         lowercase_query_tokens = [t.lower() for t in query_tokens]
     return query_tokens
 
@@ -189,7 +212,7 @@ def main() -> None:
     print("Done!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # TODO Change column types, use this query: SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
     # TODO Convert types from Spider to SQL Server
     main()

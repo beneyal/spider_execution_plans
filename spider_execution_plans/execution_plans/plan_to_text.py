@@ -1,299 +1,288 @@
+from typing import Any
+
 from .ep_types import *
+
+Environment = dict[str, Any]
+PASSTHROUGH_NODES = (ComputeScalar, Spool)
+
+
+def apply_env(v: str, env: Environment):
+    while v.startswith("Expr"):
+        v = env[v]
+    return v
+
+
+@dataclass(frozen=True)
+class Instruction:
+    """Represents a single execution plan node's text"""
+
+    text: str
+    idx: int
 
 
 def plan_to_text(ep: ExecutionPlan) -> str:
-    """Convert an Execution Plan to a set of textual instructions.
-
-    Parameters
-    ----------
-    ep
-        The execution plan to be converted
-
-    Returns
-    -------
-    plan
-        Text consisting of numbered instructions according to the given plan.
-    """
-    instructions = relop_to_text(ep.relop)
-    return "\n".join(instructions)
+    env = {"idx": 1}
+    instructions = relop_to_text(ep.relop, env=env)
+    print(f"Env: {env}")
+    return "\n".join([f"{ins.idx}. {ins.text}" for ins in instructions])
 
 
-def relop_to_text(relop: RelOp) -> list[str]:
-    """Convert a RelOp (the abstract type of the execution plan nodes) to text.
-
-    Parameters
-    ----------
-    relop
-        The RelOp to convert.
-
-    Returns
-    -------
-    instructions
-        A list of instructions based on the specific RelOp.
-    """
+def relop_to_text(relop: RelOp, env: Environment) -> list[Instruction]:
     if isinstance(relop.operation, ComputeScalar):
-        return compute_scalar_to_text(relop.operation)
+        instructions = compute_scalar_to_text(relop.operation, env)
     elif isinstance(relop.operation, StreamAggregate):
-        return stream_aggregate_to_text(relop.operation)
+        instructions = stream_aggregate_to_text(relop.operation, env)
     elif isinstance(relop.operation, IndexScan):
-        return index_scan_to_text(relop.operation)
+        instructions = index_scan_to_text(relop.operation, env)
     elif isinstance(relop.operation, Sort):
-        return sort_to_text(relop.operation)
+        instructions = sort_to_text(relop.operation, env)
     elif isinstance(relop.operation, NestedLoops):
-        return nested_loops_to_text(relop.operation)
+        instructions = nested_loops_to_text(relop.operation, env)
     elif isinstance(relop.operation, Filter):
-        return filter_to_text(relop.operation)
+        instructions = filter_to_text(relop.operation, env)
     elif isinstance(relop.operation, TopSort):
-        return top_sort_to_text(relop.operation)
+        assert len(relop.output_list) > 0
+        env["top_sort"] = relop.output_list
+        instructions = top_sort_to_text(relop.operation, env)
     elif isinstance(relop.operation, Top):
-        return top_to_text(relop.operation)
+        assert len(relop.output_list) > 0
+        env["top"] = relop.output_list
+        instructions = top_to_text(relop.operation, env)
     elif isinstance(relop.operation, Merge):
-        return merge_to_text(relop.operation)
+        instructions = merge_to_text(relop.operation, env)
     elif isinstance(relop.operation, TableScan):
-        return table_scan_to_text(relop.operation)
+        instructions = table_scan_to_text(relop.operation, env)
     elif isinstance(relop.operation, Hash):
-        return hash_to_text(relop.operation)
+        instructions = hash_to_text(relop.operation, env)
     elif isinstance(relop.operation, Concat):
-        return concat_to_text(relop.operation)
+        instructions = concat_to_text(relop.operation, env)
     elif isinstance(relop.operation, RowCountSpool):
-        return row_count_spool_to_text(relop.operation)
+        instructions = row_count_spool_to_text(relop.operation, env)
     elif isinstance(relop.operation, Spool):
-        return spool_to_text(relop.operation)
+        instructions = spool_to_text(relop.operation, env)
     else:
-        raise ValueError(f"{type(relop.operation)} does not exist.")
+        raise ValueError(f"{type(relop.operation).__class__.__name__} does not exist.")
+
+    if relop.output_list and not isinstance(relop.operation, PASSTHROUGH_NODES):
+        last_ins = instructions[-1]
+        text = last_ins.text
+        idx = last_ins.idx
+        text = f"{text[:-1]}, returning {', '.join(map(lambda x: apply_env(str(x), env), relop.output_list))}."
+        instructions = instructions[:-1] + [Instruction(text=text, idx=idx)]
+
+    return instructions
 
 
-def compute_scalar_to_text(x: ComputeScalar) -> list[str]:
-    """
+def compute_scalar_to_text(x: ComputeScalar, env: Environment) -> list[Instruction]:
+    for dv in x.defined_values:
+        assert len(dv.column_references) == 1
 
-    Parameters
-    ----------
-    x
-
-    Returns
-    -------
-
-    """
-    instructions = relop_to_text(x.relop)
-    compute_scalar_instructions = [
-        f"Compute {dv.scalar_operator} and store it as {dv.column_references[0]}."
-        for dv in x.defined_values
-    ]
-    return instructions + compute_scalar_instructions
+        env[dv.column_references[0].column] = scalar_operator_to_text(
+            dv.scalar_operator, env
+        )
+    return relop_to_text(x.relop, env)
 
 
-def stream_aggregate_to_text(x: StreamAggregate) -> list[str]:
-    """
+def stream_aggregate_to_text(x: StreamAggregate, env: Environment) -> list[Instruction]:
+    instructions = relop_to_text(x.relop, env)
+    stream_agg_instructions = []
+    for dv in x.defined_values:
+        scalar_operator = dv.scalar_operator
+        column = dv.column_references[0]
+        env[str(column)] = scalar_operator_to_text(scalar_operator, env)
+        column = env[str(column)]
+        agg_type = scalar_operator.agg_type
 
-    Parameters
-    ----------
-    x
+        assert len(x.group_by) == 1
 
-    Returns
-    -------
+        if agg_type == "ANY":
+            # TODO Add "ANY" aggregate case
+            stream_agg_instructions.append(f"TODO: ANY agg function")
+        elif agg_type == "countstar":
+            stream_agg_instructions.append(f"count the number of rows")
+        elif agg_type == "COUNT_BIG":
+            stream_agg_instructions.append(
+                f"count the number of non-null rows in {column}"
+            )
+        elif agg_type == "MAX":
+            stream_agg_instructions.append(f"take the maximum value in {column}")
+        elif agg_type == "MIN":
+            stream_agg_instructions.append(f"take the minimum value in {column}")
+        elif agg_type == "SUM":
+            stream_agg_instructions.append(f"sum the rows of {column}")
+        else:
+            raise ValueError(
+                f"Aggregate function {agg_type} not seen in train or dev sets"
+            )
+    if len(stream_agg_instructions) > 1:
+        text = (
+            f"Group rows by {x.group_by[0]} and for each group, "
+            f"{', '.join(stream_agg_instructions[:-1])}, "
+            f"and {stream_agg_instructions[-1]}."
+        )
+    else:
+        text = f"Group rows by {x.group_by[0]} and for each group, {stream_agg_instructions[0]}."
+    instruction = Instruction(text=text, idx=env["idx"])
+    env["idx"] += 1
+    return instructions + [instruction]
 
-    """
-    pass
 
-
-def index_scan_to_text(x: IndexScan) -> list[str]:
-    """Convert an IndexScan node to text.
-
-    Parameters
-    ----------
-    x
-        An IndexScan node
-
-    Returns
-    -------
-    instructions
-        A list consisting of a single instruction: "Scan <table> using <method> [in order] [by checking <predicate>+]"
-    """
+def index_scan_to_text(x: IndexScan, env: Environment) -> list[Instruction]:
     ordered = " in order" if x.ordered else ""
     predicates = (
         " by checking " + ", ".join(str(p) for p in x.predicates).replace("\\", "")
         if x.predicates
         else ""
     )
-    return [f"Scan {x.obj}{ordered}{predicates}"]
+    instruction = Instruction(
+        text=f"Scan {x.obj}{ordered}{predicates}.", idx=env["idx"]
+    )
+    env["idx"] += 1
+    return [instruction]
 
 
-def sort_to_text(x: Sort) -> list[str]:
-    """Convert a Sort node to text.
-
-    Parameters
-    ----------
-    x
-        A Sort node
-
-    Returns
-    -------
-    instructions
-        A list consisting of [RelOp realization, "Sort distinct values col1, col2, ... in ascending order"]
-    """
-    instructions = relop_to_text(x.relop)
+def sort_to_text(x: Sort, env: Environment) -> list[Instruction]:
+    instructions = relop_to_text(x.relop, env)
     sort_columns = [f"{cr.table}.{cr.column}" for cr in x.order_by.columns]
     order = "ascending" if x.order_by.ascending else "descending"
     distinct = "distinct" if x.distinct else ""
-    instruction = f"Sort {distinct} values {', '.join(sort_columns)} in {order} order."
+    instruction = Instruction(
+        text=f"Sort {distinct} values {', '.join(sort_columns)} in {order} order.",
+        idx=env["idx"],
+    )
+    env["idx"] += 1
     return instructions + [instruction]
 
 
-def nested_loops_to_text(x: NestedLoops) -> list[str]:
-    """
-
-    Parameters
-    ----------
-    x
-
-    Returns
-    -------
-
-    """
-    pass
-
-
-def filter_to_text(x: Filter) -> list[str]:
-    """
-
-    Parameters
-    ----------
-    x
-
-    Returns
-    -------
-
-    """
-    pass
+def nested_loops_to_text(x: NestedLoops, env: Environment) -> list[Instruction]:
+    left_ins = relop_to_text(x.left, env)
+    left_idx = env["idx"] - 1
+    right_ins = relop_to_text(x.right, env)
+    right_idx = env["idx"] - 1
+    pred = f" matching condition: {x.predicate}" if x.predicate else ""
+    instruction = Instruction(
+        text=f"For each row in {left_idx}, scan {right_idx} and output rows{pred}.",
+        idx=env["idx"],
+    )
+    env["idx"] += 1
+    return left_ins + right_ins + [instruction]
 
 
-def top_sort_to_text(x: TopSort) -> list[str]:
-    """
-
-    Parameters
-    ----------
-    x
-
-    Returns
-    -------
-
-    """
-    pass
+def filter_to_text(x: Filter, env: Environment) -> list[Instruction]:
+    instructions = relop_to_text(x.relop, env)
+    instruction = Instruction(
+        text=f"Restrict the set of rows based on {scalar_operator_to_text(x.predicate, env)}.",
+        idx=env["idx"],
+    )
+    env["idx"] += 1
+    return instructions + [instruction]
 
 
-def top_to_text(x: Top) -> list[str]:
-    """
-
-    Parameters
-    ----------
-    x
-
-    Returns
-    -------
-
-    """
-    pass
-
-
-def merge_to_text(x: Merge) -> list[str]:
-    """
-
-    Parameters
-    ----------
-    x
-
-    Returns
-    -------
-
-    """
-    pass
+def top_sort_to_text(x: TopSort, env: Environment) -> list[Instruction]:
+    instructions = relop_to_text(x.relop, env)
+    order_by_columns = ", ".join(
+        map(lambda c: apply_env(str(c), env), x.order_by.columns)
+    )
+    asc = "in ascending order" if x.order_by.ascending else "in descending order"
+    columns = ", ".join(map(str, env["top_sort"][:-1]))
+    instruction = Instruction(
+        text=f"Sort {columns} by {order_by_columns} {asc} and take the top {x.rows} rows.",
+        idx=env["idx"],
+    )
+    env["idx"] += 1
+    return instructions + [instruction]
 
 
-def table_scan_to_text(x: TableScan) -> list[str]:
-    """Convert a TableScan node to text.
+def top_to_text(x: Top, env: Environment) -> list[Instruction]:
+    instructions = relop_to_text(x.relop, env)
+    instruction = Instruction(
+        text=f"Take the top {scalar_operator_to_text(x.top_expression)} rows.",
+        idx=env["idx"],
+    )
+    env["idx"] += 1
+    return instructions + [instruction]
 
-    Parameters
-    ----------
-    x
-        A TableScan node
 
-    Returns
-    -------
-    instructions
-        A list consisting of a single instruction: "Scan <table> using <method> [in order] [by checking <predicate>+]"
-    """
+def merge_to_text(x: Merge, env: Environment) -> list[Instruction]:
+    left_ins = relop_to_text(x.left, env)
+    left_idx = env["idx"] - 1
+    right_ins = relop_to_text(x.right, env)
+    right_idx = env["idx"] - 1
+    instruction = Instruction(
+        f"Merge the outputs of {left_idx} and {right_idx}.", idx=env["idx"]
+    )
+    env["idx"] += 1
+    return left_ins + right_ins + [instruction]
+
+
+def table_scan_to_text(x: TableScan, env: Environment) -> list[Instruction]:
     ordered = " in order" if x.ordered else ""
     predicates = (
-        " by checking " + ", ".join(str(p) for p in x.predicates).replace("\\", "")
-        if x.predicates
-        else ""
+        " by checking " + str(x.predicate).replace("\\", "") if x.predicate else ""
     )
-    return [f"Scan {x.obj}{ordered}{predicates}"]
+    instruction = Instruction(text=f"Scan {x.obj}{ordered}{predicates}", idx=env["idx"])
+    env["idx"] += 1
+    return [instruction]
 
 
-def hash_to_text(x: Hash) -> list[str]:
-    """Convert a Hash node to text.
-
-    Parameters
-    ----------
-    x
-        A Hash node
-
-    Returns
-    -------
-    instructions
-        A list consisting of the Hash node's RelOp instructions, appended with "".
-    """
-    instructions = [ins for relop in x.relops for ins in relop_to_text(relop)]
-    # TODO
+def hash_to_text(x: Hash, env: Environment) -> list[Instruction]:
+    instructions = [ins for relop in x.relops for ins in relop_to_text(relop, env)]
+    # TODO Complete "Hash" node implementation
 
 
-def concat_to_text(x: Concat) -> list[str]:
-    """Convert a Concat node to text.
-
-    Parameters
-    ----------
-    x
-        A Concat node
-
-    Returns
-    -------
-    instructions
-        A list consisting of the instructions of the N RelOps connected to the Concat node,
-        appended with "Concatenate the results of the previous N outputs".
-    """
-    instructions = [ins for relop in x.relops for ins in relop_to_text(relop)]
-    instruction = f"Concatenate the outputs of the previous {len(x.relops)} nodes."
+def concat_to_text(x: Concat, env: Environment) -> list[Instruction]:
+    instructions = [ins for relop in x.relops for ins in relop_to_text(relop, env)]
+    instruction = "Concatenate the outputs of the previous {insno} nodes."
     return instructions + [instruction]
 
 
-def row_count_spool_to_text(x: RowCountSpool) -> list[str]:
-    """Convert a RowCountSpool node to text.
-
-    Parameters
-    ----------
-    x
-        A RowCountSpool node
-
-    Returns
-    -------
-    instructions
-        A list consisting of the node's RelOp instructions, appended with "Count the number of rows in the result".
-    """
-    instructions = relop_to_text(x.relop)
-    instruction = "Count the number of rows in the result."
+def row_count_spool_to_text(x: RowCountSpool, env: Environment) -> list[Instruction]:
+    instructions = relop_to_text(x.relop, env)
+    instruction = f"Count the number of rows in {env['idx']}."
     return instructions + [instruction]
 
 
-def spool_to_text(x: Spool) -> list[str]:
-    """
+def spool_to_text(x: Spool, env: Environment) -> list[Instruction]:
+    return relop_to_text(x.relop, env)
 
-    Parameters
-    ----------
-    x
 
-    Returns
-    -------
+def scalar_operator_to_text(x: ScalarOperator, env: Environment):
+    if isinstance(x, Aggregate):
+        if x.agg_type == "countstar":
+            return "number of rows"
+        return str(x)
+    elif isinstance(x, Arithmetic):
+        op = arith2sign[x.operation].replace("\\", "")
+        lhs, rhs = [scalar_operator_to_text(s, env) for s in x.scalar_operators]
+        return f"{lhs} {op} {rhs}"
+    elif isinstance(x, Compare):
+        op = comp2sign[x.compare_op].replace("\\", "")
+        lhs, rhs = [scalar_operator_to_text(s, env) for s in x.scalar_operators]
+        return f"{apply_env(lhs, env)} {op} {apply_env(rhs, env)}"
+    elif isinstance(x, Const):
+        return str(x.const_value)
+    elif isinstance(x, Convert):
+        return scalar_operator_to_text(x.scalar_operator, env)
+    elif isinstance(x, If):
+        pass
+    elif isinstance(x, Identifier):
+        return x.column_reference.column
+    elif isinstance(x, Intrinsic):
+        pass
+    elif isinstance(x, Logical):
+        pass
+    else:
+        raise ValueError(f"{type(x).__class__.__name__} does not exist.")
 
-    """
-    pass
+
+if __name__ == "__main__":
+    from .ep_reader import get_train_dev_eps
+
+    train, _ = get_train_dev_eps()
+    for idx in (2520, 2997, 3207):
+        ep = train[idx]
+        print("=" * len(ep.query))
+        print(ep.query)
+        print("=" * len(ep.query))
+        print(plan_to_text(ep))
+        print(end="\n\n")
