@@ -3,7 +3,7 @@ from typing import Any
 from .ep_types import *
 
 Environment = dict[str, Any]
-PASSTHROUGH_NODES = (ComputeScalar, Spool)
+IGNORED_NODES = (NestedLoops, ComputeScalar, Spool)
 
 
 def apply_env(v: str, env: Environment):
@@ -63,7 +63,7 @@ def relop_to_text(relop: RelOp, env: Environment) -> list[Instruction]:
     else:
         raise ValueError(f"{type(relop.operation).__class__.__name__} does not exist.")
 
-    if relop.output_list and not isinstance(relop.operation, PASSTHROUGH_NODES):
+    if relop.output_list and not isinstance(relop.operation, IGNORED_NODES):
         last_ins = instructions[-1]
         text = last_ins.text
         idx = last_ins.idx
@@ -96,8 +96,8 @@ def stream_aggregate_to_text(x: StreamAggregate, env: Environment) -> list[Instr
         assert len(x.group_by) == 1
 
         if agg_type == "ANY":
-            # TODO Add "ANY" aggregate case
-            stream_agg_instructions.append(f"TODO: ANY agg function")
+            # Explicitly ignore ANY aggregations
+            pass
         elif agg_type == "countstar":
             stream_agg_instructions.append(f"count the number of rows")
         elif agg_type == "COUNT_BIG":
@@ -159,7 +159,7 @@ def nested_loops_to_text(x: NestedLoops, env: Environment) -> list[Instruction]:
     left_idx = env["idx"] - 1
     right_ins = relop_to_text(x.right, env)
     right_idx = env["idx"] - 1
-    pred = f" matching condition: {x.predicate}" if x.predicate else ""
+    pred = f" matching the condition: {x.predicate}" if x.predicate else ""
     instruction = Instruction(
         text=f"For each row in {left_idx}, scan {right_idx} and output rows{pred}.",
         idx=env["idx"],
@@ -226,8 +226,15 @@ def table_scan_to_text(x: TableScan, env: Environment) -> list[Instruction]:
 
 
 def hash_to_text(x: Hash, env: Environment) -> list[Instruction]:
-    instructions = [ins for relop in x.relops for ins in relop_to_text(relop, env)]
-    # TODO Complete "Hash" node implementation
+    assert len(x.relops) in (1, 2)
+    if len(x.relops) == 2:
+        left, right = x.relops
+        left_ins = relop_to_text(left, env)
+        left_idx = env["idx"] - 1
+        right_ins = relop_to_text(right, env)
+        right_idx = env["idx"] - 1
+    else:  # len(x.relops) == 1
+        pass
 
 
 def concat_to_text(x: Concat, env: Environment) -> list[Instruction]:
@@ -279,7 +286,7 @@ if __name__ == "__main__":
     from .ep_reader import get_train_dev_eps
 
     train, _ = get_train_dev_eps()
-    for idx in (2520, 2997, 3207):
+    for idx in (2520, 3207):
         ep = train[idx]
         print("=" * len(ep.query))
         print(ep.query)
