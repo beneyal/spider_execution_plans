@@ -2,6 +2,8 @@
 
 import json
 import re
+import sys
+
 from pathlib import Path
 from typing import Tuple
 
@@ -10,7 +12,7 @@ import pyodbc
 
 CONNECTION_STRING = (
     "Driver={ODBC Driver 17 for SQL Server};"
-    "Server=BENEYAL;"
+    f"Server={sys.argv[1]};"
     "Database=spider;"
     "Trusted_Connection=yes;"
 )
